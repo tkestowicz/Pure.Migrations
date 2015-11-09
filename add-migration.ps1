@@ -74,7 +74,7 @@ function create-migration($csProjXml, $itemGroup, $migrationId)
     
     $newItem.SetAttribute("Include", [io.path]::combine($migrationsDir, $migrationName)) 
     
-    $itemGroup.AppendChild($newItem)
+    $itemGroup.AppendChild($newItem) | Out-Null
 
     $dir = ensure-directory $migrationsDir
 
@@ -94,9 +94,9 @@ function create-additional-script($scriptType, $csProjXml, $itemGroup, $migratio
 
     $dependItem.InnerText = $migrationName
 
-    $newItem.AppendChild($dependItem)
+    $newItem.AppendChild($dependItem) | Out-Null
 
-    $itemGroup.AppendChild($newItem)
+    $itemGroup.AppendChild($newItem) | Out-Null
 
     $dir = ensure-directory $migrationsDir
 
