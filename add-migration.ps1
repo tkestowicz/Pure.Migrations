@@ -6,47 +6,69 @@
     [Parameter(Mandatory=$false)]
     $migrationsDir = "Migrations",
     [switch]
-    $force = $false
+    $force = $false,
+    [switch]
+    $withRevert = $false,
+    [switch]
+    $withData = $false
 )
 
 & "$PSCommandPath\..\load-dte.ps1"
 
 $solutionPath = Split-Path $DTE.Solution.Properties.Item('Path').Value
 
+$scriptTypeEnum = @{
+      Migration = 1
+      Revert = 2
+      Data = 3
+   }
+
 function add-migration
 {
     $name = escape-name $name
-    $csproj = find-project
-    [xml] $csprojXml = Get-Content $csproj.FullName
+    $csproj = find-project-by-name $project
 
-    $migrationId = get-timestamp
-    
+    [xml] $csprojXml = get-content $csproj.FullName
+
+    $migrationId = generate-id    
     $itemGroup = ensure-item-group $csprojXml
-    $migration = create-migration $csprojXml $itemGroup $migrationId
+   
+    create-migration $csprojXml $itemGroup $migrationId
+    
+    if($withRevert)
+    {
+        create-additional-script $scriptTypeEnum.Revert $csprojXml $itemGroup $migrationId 
+    }
+
+    if($withData)
+    {
+        create-additional-script $scriptTypeEnum.Data $csprojXml $itemGroup $migrationId 
+    }
 
     $csprojXml.Save($csproj.FullName)
 }
 
-
-function escape-name
+function escape-name($name)
 {
     return $name -replace "[\s]", "-"
 }
 
-function find-project()
+function find-project-by-name($projectName)
 {
-    return $DTE.Solution.Projects | Where { $_.Name -eq $project } | select -First 1
+    return $DTE.Solution.Projects | Where { $_.Name -eq $projectName} | select -First 1
 }
 
-function get-timestamp(){
-    $current = (Get-Date -Format s)
+function generate-id()
+{
+    $current = (get-date -Format s)
 
     $current -replace "[T:-]", ""
 }
 
-function create-migration($csProjXml, $itemGroup, $migrationId){
+function create-migration($csProjXml, $itemGroup, $migrationId)
+{
 
-    $migrationName = $migrationId+"_"+$name+".sql"
+    $migrationName = create-script-name $migrationId $scriptTypeEnum.Migration
 
     $newItem = $csprojXml.CreateElement("EmbeddedResource", $csprojXml.DocumentElement.NamespaceURI)
     
@@ -57,8 +79,28 @@ function create-migration($csProjXml, $itemGroup, $migrationId){
     $dir = ensure-directory $migrationsDir
 
     create-file ([io.path]::combine($dir.FullName, $migrationName))
+}
 
-    return $migrationPath
+function create-additional-script($scriptType, $csProjXml, $itemGroup, $migrationId)
+{
+    $migrationName = create-script-name $migrationId $scriptTypeEnum.Migration
+    $scriptName = create-script-name $migrationId $scriptType
+
+    $newItem = $csprojXml.CreateElement("EmbeddedResource", $csprojXml.DocumentElement.NamespaceURI)
+    
+    $newItem.SetAttribute("Include", [io.path]::combine($migrationsDir, $scriptName)) 
+
+    $dependItem = $csprojXml.CreateElement("DependentUpon", $csprojXml.DocumentElement.NamespaceURI)
+
+    $dependItem.InnerText = $migrationName
+
+    $newItem.AppendChild($dependItem)
+
+    $itemGroup.AppendChild($newItem)
+
+    $dir = ensure-directory $migrationsDir
+
+    create-file ([io.path]::combine($dir.FullName, $scriptName))
 }
 
 function ensure-item-group($csProjXml)
@@ -77,25 +119,47 @@ function ensure-item-group($csProjXml)
     $itemGroup
 }
 
-function ensure-directory($dir){
+function ensure-directory($dir)
+{
 
     $fullPath = [io.path]::Combine($solutionPath, $project, $dir)
 
-    $dirExists = Test-Path $fullPath
+    $dirExists = test-path $fullPath
     
     if($dirExists -eq $false){
-        New-Item -ItemType directory -Path $fullPath -Force | Out-Null 
+        new-item -ItemType directory -Path $fullPath -Force | Out-Null 
     }
 
     return [System.IO.DirectoryInfo] $fullPath
 }
 
-function create-file($fullPath){
+function create-file($fullPath)
+{
+    
     if($force){
-        New-Item -ItemType file -Path $fullPath -Force | Out-Null 
+        new-item -ItemType file -Path $fullPath -Force | Out-Null 
     }else{
-        New-Item -ItemType file -Path $fullPath | Out-Null 
+        new-item -ItemType file -Path $fullPath | Out-Null 
     }
+
+}
+
+function create-script-name($id, $type)
+{
+
+    if($type -eq $scriptTypeEnum.Migration){
+        return $id+"_"+$name+".sql"
+    }
+
+    if($type -eq $scriptTypeEnum.Revert){
+        return $id+"_revert_"+$name+".sql"
+    }
+
+    if($type -eq $scriptTypeEnum.Data){
+        return $id+"_data_"+$name+".sql"
+    }
+
+    throw "Unkown script type"
 }
 
 add-migration
