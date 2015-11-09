@@ -9,22 +9,62 @@
     $force = $false
 )
 
-[System.IO.DirectoryInfo] $solutionDir = ([System.IO.FileInfo]$PSCommandPath).Directory.Parent.FullName
+& "$PSCommandPath\..\load-dte.ps1"
 
-Function add-migration([system.string] $name, [System.String] $project, [System.String] $migrationsDir)
+$solutionPath = Split-Path $DTE.Solution.Properties.Item('Path').Value
+
+function add-migration
 {
-    $name = $name -replace "[\s]", "-"
-    [System.IO.DirectoryInfo] $projectDir = [io.path]::combine($solutionDir.FullName, $project)
-    
-    $migrationTimestamp = get-timestamp
-    $migrationPath = [io.path]::combine($migrationsDir, $migrationTimestamp+"_"+$name+".sql")
-
-    $csproj = $projectDir.GetFiles() | where { $_.FullName.EndsWith(".csproj") }
-
+    $name = escape-name $name
+    $csproj = find-project
     [xml] $csprojXml = Get-Content $csproj.FullName
+
+    $migrationId = get-timestamp
     
+    $itemGroup = ensure-item-group $csprojXml
+    $migration = create-migration $csprojXml $itemGroup $migrationId
+
+    $csprojXml.Save($csproj.FullName)
+}
+
+
+function escape-name
+{
+    return $name -replace "[\s]", "-"
+}
+
+function find-project()
+{
+    return $DTE.Solution.Projects | Where { $_.Name -eq $project } | select -First 1
+}
+
+function get-timestamp(){
+    $current = (Get-Date -Format s)
+
+    $current -replace "[T:-]", ""
+}
+
+function create-migration($csProjXml, $itemGroup, $migrationId){
+
+    $migrationName = $migrationId+"_"+$name+".sql"
+
+    $newItem = $csprojXml.CreateElement("EmbeddedResource", $csprojXml.DocumentElement.NamespaceURI)
+    
+    $newItem.SetAttribute("Include", [io.path]::combine($migrationsDir, $migrationName)) 
+    
+    $itemGroup.AppendChild($newItem)
+
+    $dir = ensure-directory $migrationsDir
+
+    create-file ([io.path]::combine($dir.FullName, $migrationName))
+
+    return $migrationPath
+}
+
+function ensure-item-group($csProjXml)
+{
     $nm = New-Object -TypeName System.Xml.XmlNamespaceManager -ArgumentList $csprojXml.NameTable
-    $nm.AddNamespace('x', 'http://schemas.microsoft.com/developer/msbuild/2003')
+    $nm.AddNamespace('x', $csprojXml.DocumentElemement.NamespaceURI)
 
     [System.Xml.XmlElement] $itemGroup = $csprojXml.SelectNodes('/x:Project/x:ItemGroup', $nm) | select -First 1
     if($itemGroup -eq $null)
@@ -34,22 +74,23 @@ Function add-migration([system.string] $name, [System.String] $project, [System.
         $csprojXml.DocumentElement.AppendChild($itemGroup)
     }
 
-    $newItem = $csprojXml.CreateElement("EmbeddedResource", $csprojXml.DocumentElement.NamespaceURI)
+    $itemGroup
+}
+
+function ensure-directory($dir){
+
+    $fullPath = [io.path]::Combine($solutionPath, $project, $dir)
+
+    $dirExists = Test-Path $fullPath
     
-    $newItem.SetAttribute("Include", $migrationPath) 
-    
-    $itemGroup.AppendChild($newItem)
-    
-    $csprojXml.Save($csproj.FullName)
-    
-    $fullPath = [io.path]::combine($projectDir.FullName, $migrationPath)
-    $migrationsDir = [io.path]::combine($projectDir.FullName, $migrationsDir)
-    $migrationsDirExists = Test-Path $migrationsDir
-    
-    if($migrationsDirExists -eq $false){
-        New-Item -ItemType directory -Path $migrationsDir -Force | Out-Null 
+    if($dirExists -eq $false){
+        New-Item -ItemType directory -Path $fullPath -Force | Out-Null 
     }
 
+    return [System.IO.DirectoryInfo] $fullPath
+}
+
+function create-file($fullPath){
     if($force){
         New-Item -ItemType file -Path $fullPath -Force | Out-Null 
     }else{
@@ -57,12 +98,4 @@ Function add-migration([system.string] $name, [System.String] $project, [System.
     }
 }
 
-
-
-Function get-timestamp(){
-    $current = (Get-Date -Format s)
-
-    $current -replace "[T:-]", ""
-}
-
-add-migration $name $project $migrationsDir
+add-migration
