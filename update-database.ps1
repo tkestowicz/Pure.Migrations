@@ -31,8 +31,8 @@ function update-database
 
     try{
         $appliedMigrations = initialize-versioning $cmd
-        
-        if($migrations.Length -gt $appliedMigrations.Length)
+ 
+        if($migrations.Length -eq $appliedMigrations.Length)
         {
             Write-Host "Database is up to date."
             return
@@ -59,14 +59,14 @@ function update-database
 function execute-migration($migration, $appliedMigrations)
 {
     $name = get-migration-name $migration
-
+    Write-Host $name
     $migrationId = get-migration-id $migration
 
     $isNotAlreadyApplied = none($appliedMigrations | where { $_ -eq $migrationId })
              
     if($isNotAlreadyApplied){
 
-        $canBeApplied = none($appliedMigrations | where { $migration -gt $migrationId })
+        $canBeApplied = none($appliedMigrations | where { $_ -gt $migrationId })
                
         if($canBeApplied)
         {
@@ -133,7 +133,7 @@ function find-migrations
 {
     $project = $dte.Solution.Projects | where { $_.Name -eq $project } | select ProjectItems
     $migrationsDir = $project.ProjectItems | where { $_.Name -eq $migrationsDir } | select -First 1
-    $migrationsDir.ProjectItems
+    $migrationsDir.ProjectItems | where { $_.Name -notmatch "^[0-9]+_(data|revert)_.*.sql$" }
 }
 
 function find-startup-project
@@ -207,7 +207,7 @@ function get-migration-name($migration)
     
     $name = [System.IO.Path]::GetFileNameWithoutExtension($migration.Name)
 
-    $name = $name -replace $timestamp+"_"
+    $name = $name -replace $timestamp+"_+(revert|data)+_"
     
     return $name
 }

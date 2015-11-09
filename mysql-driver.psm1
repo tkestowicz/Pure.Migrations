@@ -53,9 +53,14 @@ function get-applied-migrations($command)
 
 function run-migration($file, $migrationId, $cmd)
 {
-    $cmd.CommandText = Get-Content $file
-    $rows = $cmd.ExecuteNonQuery()
+    $query = get-content $file.FullName
 
+    if($query.Length -gt 0)
+    {
+        $cmd.CommandText = $query
+        $rows = $cmd.ExecuteNonQuery()
+    }
+    
     $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
     
     $cmd.CommandText = "insert into $Script:migrationsTable(id, migration) values($migrationId, '$name')"
