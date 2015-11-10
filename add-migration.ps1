@@ -8,8 +8,6 @@
     [switch]
     $force = $false,
     [switch]
-    $withRevert = $false,
-    [switch]
     $withData = $false
 )
 
@@ -34,11 +32,7 @@ function add-migration
     $itemGroup = ensure-item-group $csprojXml
    
     create-migration $csprojXml $itemGroup $migrationId
-    
-    if($withRevert)
-    {
-        create-additional-script $scriptTypeEnum.Revert $csprojXml $itemGroup $migrationId 
-    }
+    create-additional-script $scriptTypeEnum.Revert $csprojXml $itemGroup $migrationId 
 
     if($withData)
     {
