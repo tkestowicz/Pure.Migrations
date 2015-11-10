@@ -24,7 +24,8 @@ Import-Module (Join-Path $PSCommandPath\.. mysql-driver.psm1) -DisableNameChecki
 function update-database
 {
     $startupProject = find-startup-project
-    $migrations = find-migrations
+    $migrationsDir = find-migrations-directory
+    $migrations = find-migrations $migrationsDir
     $connectionString = find-connection-string $startupProject
 
     $cmd = create-command $connectionString    
@@ -37,7 +38,7 @@ function update-database
             Write-Host "Database is up to date."
             return
         }
-
+        
         foreach($migration in $migrations)
         {
             execute-migration $migration $appliedMigrations
@@ -59,9 +60,8 @@ function update-database
 function execute-migration($migration, $appliedMigrations)
 {
     $name = get-migration-name $migration
-    Write-Host $name
     $migrationId = get-migration-id $migration
-
+    
     $isNotAlreadyApplied = none($appliedMigrations | where { $_ -eq $migrationId })
              
     if($isNotAlreadyApplied){
@@ -70,9 +70,16 @@ function execute-migration($migration, $appliedMigrations)
                
         if($canBeApplied)
         {
-            [System.IO.FileInfo] $migrationFile = get-migration-fullpath $migration
+            [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
 
             run-migration $migrationFile $migrationId $cmd 
+            
+            $data = find-data-script $name $migrationId
+
+            if($data)
+            {
+                import-data $data $cmd
+            }
         }
         else{
             throw "Migration '"+$migration.Name+"' cannot be applied because newer migration has been already applied."
@@ -123,16 +130,20 @@ function find-connection-string($startupProject)
 
 function is-config($file)
 {
-   
     $fileName = $file.Name.ToLower()
     
     $fileName -eq "app.config" -or $fileName -eq "web.config"
 }
 
-function find-migrations
-{
+function find-migrations-directory
+{    
     $project = $dte.Solution.Projects | where { $_.Name -eq $project } | select ProjectItems
-    $migrationsDir = $project.ProjectItems | where { $_.Name -eq $migrationsDir } | select -First 1
+    
+    return $project.ProjectItems | where { $_.Name -eq $migrationsDir } | select -First 1
+}
+
+function find-migrations($migrationsDir)
+{
     $migrationsDir.ProjectItems | where { $_.Name -notmatch "^[0-9]+_(data|revert)_.*.sql$" }
 }
 
@@ -185,15 +196,26 @@ function find-startup-project
     }
 }
 
-function get-migration-fullpath($migration)
+function find-data-script($name, $migrationId)
 {
+    [System.IO.DirectoryInfo] $migrations = get-migrations-fullpath
+    [System.IO.FileInfo] $script = $migrations.GetFiles() | where { $_.Name -eq $migrationId+"_data_$name.sql" } | select -First 1
 
-    return [io.path]::combine($solutionPath, $project, $migrationsDir, $migration.Name)
+    return  $script
+}
+
+function get-migrations-fullpath
+{
+    return [io.path]::combine($solutionPath, $project, $migrationsDir.Name)
+}
+
+function get-script-fullpath($name)
+{
+    return [io.path]::combine((get-migrations-fullpath), $name)
 }
 
 function get-migration-id($migration)
 {
-    
     $migration.Name -match "^([0-9]+)" | out-null
         
     $timestamp = $($Matches[0])
@@ -207,7 +229,7 @@ function get-migration-name($migration)
     
     $name = [System.IO.Path]::GetFileNameWithoutExtension($migration.Name)
 
-    $name = $name -replace $timestamp+"_+(revert|data)+_"
+    $name = $name -replace $timestamp+"_?(revert|data)?_"
     
     return $name
 }

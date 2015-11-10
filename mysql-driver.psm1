@@ -68,4 +68,15 @@ function run-migration($file, $migrationId, $cmd)
     $rows = $cmd.ExecuteNonQuery()
 }
 
-Export-ModuleMember -Function create-command, initialize-versioning, run-migration
+function import-data($file, $cmd)
+{
+    $query = get-content $file.FullName
+
+    if($query.Length -gt 0)
+    {
+        $cmd.CommandText = $query
+        $rows = $cmd.ExecuteNonQuery()
+    }
+}
+
+Export-ModuleMember -Function create-command, initialize-versioning, run-migration, import-data
