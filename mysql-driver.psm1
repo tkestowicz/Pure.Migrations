@@ -79,4 +79,19 @@ function import-data($file, $cmd)
     }
 }
 
-Export-ModuleMember -Function create-command, initialize-versioning, run-migration, import-data
+function revert-migration($file, $migrationId, $cmd)
+{
+    $query = get-content $file.FullName
+
+    if($query.Length -gt 0)
+    {
+        $cmd.CommandText = $query
+        $rows = $cmd.ExecuteNonQuery()
+    }
+
+    $cmd.CommandText = "delete from $Script:migrationsTable where id = $migrationId"
+
+    $rows = $cmd.ExecuteNonQuery()
+}
+
+Export-ModuleMember -Function create-command, initialize-versioning, run-migration, import-data, revert-migration

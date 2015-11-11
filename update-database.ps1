@@ -57,6 +57,59 @@ function update-database
     }   
 }
 
+function revert-database
+{
+    if([string]::IsNullOrEmpty($targetMigration))
+    {
+        throw "Target migration not specified."
+    }
+
+    $startupProject = find-startup-project
+    $migrationsDir = find-migrations-directory
+    $migrations = find-revert-migrations $migrationsDir
+    $connectionString = find-connection-string $startupProject
+
+    $cmd = create-command $connectionString    
+
+    try
+    {
+        $appliedMigrations = initialize-versioning $cmd
+        
+        foreach($migration in $migrations)
+        {
+            execute-revert $migration $appliedMigrations
+        }
+
+        Write-Host "Database reverted to '$targetMigration' migration."
+
+        $cmd.Transaction.Commit()
+    }
+    catch{
+        write-error $_
+        $cmd.Transaction.Rollback()        
+    }
+    finally{
+        $cmd.Connection.Close()
+    } 
+}
+
+function execute-revert($migration, $appliedMigrations)
+{
+    $name = get-migration-name $migration
+    $migrationId = get-migration-id $migration
+
+    $isNotAlreadyApplied = none($appliedMigrations | where { $_ -eq $migrationId })
+
+    if($isNotAlreadyApplied)
+    {
+        throw "Migration '$name' is not present in the to database."
+    }
+
+    [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
+
+    revert-migration  $migrationFile $migrationId $cmd    
+}
+
 function execute-migration($migration, $appliedMigrations)
 {
     $name = get-migration-name $migration
@@ -145,6 +198,22 @@ function find-migrations-directory
 function find-migrations($migrationsDir)
 {
     $migrationsDir.ProjectItems | where { $_.Name -notmatch "^[0-9]+_(data|revert)_.*.sql$" }
+}
+
+function find-revert-migrations($migrationsDir)
+{
+    [System.IO.DirectoryInfo] $migrations = get-migrations-fullpath
+    $revertScripts = $migrations.GetFiles() | where { $_.Name -match "[0-9]+_revert_.*.sql" } | Sort-Object Name -Descending
+
+    foreach($script in $revertScripts)
+    {
+        if($script.Name -match $targetMigration)
+        {
+            break
+        }   
+        
+        $script     
+    }
 }
 
 function find-startup-project
