@@ -23,12 +23,19 @@ $scriptTypeEnum = @{
 
 function add-migration
 {
+    $migrationId = generate-id    
     $name = escape-name $name
+    $isNameUnique = is-migration-name-unique $migrationId $name
+
+    if($isNameUnique -eq $false)
+    {
+        throw "Name of the migration must be unique. Migration with name '$name' already exists."
+    }
+
     $csproj = find-project-by-name $project
 
     [xml] $csprojXml = get-content $csproj.FullName
 
-    $migrationId = generate-id    
     $itemGroup = ensure-item-group $csprojXml
    
     create-migration $csprojXml $itemGroup $migrationId
@@ -45,6 +52,13 @@ function add-migration
 function escape-name($name)
 {
     return $name -replace "[\s]", "-"
+}
+
+function is-migration-name-unique($migrationId, $name)
+{
+    [System.IO.DirectoryInfo] $dir = [io.path]::Combine($solutionPath, $project, $migrationsDir)
+
+    ($dir.GetFiles() | where { $_.Name -match "^[0-9]+_"+$name+".sql$" } | Group ).Count -eq 0
 }
 
 function find-project-by-name($projectName)
