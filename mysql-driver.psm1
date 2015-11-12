@@ -51,14 +51,16 @@ function get-applied-migrations($command)
     $reader.Close()
 }
 
-function run-migration($file, $migrationId, $cmd)
+function run-migration($file, $migrationId, $cmd, $verbose)
 {
     $query = get-content $file.FullName
 
     if($query.Length -gt 0)
     {
+        print-verbose $query $verbose  
+
         $cmd.CommandText = $query
-        $rows = $cmd.ExecuteNonQuery()
+        $rows = $cmd.ExecuteNonQuery()          
     }
     
     $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
@@ -68,23 +70,27 @@ function run-migration($file, $migrationId, $cmd)
     $rows = $cmd.ExecuteNonQuery()
 }
 
-function import-data($file, $cmd)
+function import-data($file, $cmd, $verbose)
 {
     $query = get-content $file.FullName
 
     if($query.Length -gt 0)
     {
+        print-verbose $query $verbose
+
         $cmd.CommandText = $query
         $rows = $cmd.ExecuteNonQuery()
     }
 }
 
-function revert-migration($file, $migrationId, $cmd)
+function revert-migration($file, $migrationId, $cmd, $verbose)
 {
     $query = get-content $file.FullName
 
     if($query.Length -gt 0)
     {
+        print-verbose $query $verbose
+
         $cmd.CommandText = $query
         $rows = $cmd.ExecuteNonQuery()
     }
@@ -92,6 +98,18 @@ function revert-migration($file, $migrationId, $cmd)
     $cmd.CommandText = "delete from $Script:migrationsTable where id = $migrationId"
 
     $rows = $cmd.ExecuteNonQuery()
+}
+
+function print-verbose($text, $verbose)
+{
+    if($verbose)
+    {
+        Write-Host "------------------" -ForegroundColor Gray
+        Write-Host
+        Write-Host $text -ForegroundColor Gray
+        Write-Host
+        Write-Host "------------------" -ForegroundColor Gray
+    }     
 }
 
 Export-ModuleMember -Function create-command, initialize-versioning, run-migration, import-data, revert-migration

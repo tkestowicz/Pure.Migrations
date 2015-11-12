@@ -6,7 +6,9 @@
     [Parameter(Mandatory=$false)]
     $connectionStringName,
     [Parameter(Mandatory=$false)]
-    $targetMigration
+    $targetMigration,
+    [switch]
+    $detailed
 )
 
 & "$PSCommandPath\..\load-dte.ps1"
@@ -23,74 +25,104 @@ Import-Module (Join-Path $PSCommandPath\.. mysql-driver.psm1) -DisableNameChecki
 
 function update-database
 {
-    $startupProject = find-startup-project
-    $migrationsDir = find-migrations-directory
-    $migrations = find-migrations $migrationsDir
-    $connectionString = find-connection-string $startupProject
-
-    $cmd = create-command $connectionString    
-
     try{
-        $appliedMigrations = initialize-versioning $cmd
- 
-        if($migrations.Length -eq $appliedMigrations.Length)
-        {
-            Write-Host "Database is up to date."
-            return
-        }
+        Write-Host "Updating database, pass '-detailed' to see detailed output..." -ForegroundColor Gray
         
-        foreach($migration in $migrations)
-        {
-            execute-migration $migration $appliedMigrations
+        $startupProject = find-startup-project
+        $migrationsDir = find-migrations-directory
+        $migrations = find-migrations $migrationsDir
+        $connectionString = find-connection-string $startupProject
+
+        $cmd = create-command $connectionString    
+
+        try{
+            $appliedMigrations = initialize-versioning $cmd
+ 
+            if(($migrations | group).Count -eq $appliedMigrations.Length)
+            {
+                Write-Host "Database is up to date." -ForegroundColor Gray
+                return
+            }
+        
+            foreach($migration in $migrations)
+            {           
+                execute-migration $migration $appliedMigrations
+            }
+
+            Write-Host "All migrations successfully applied." -ForegroundColor DarkGreen
+
+            $cmd.Transaction.Commit()
         }
-
-        Write-Host "All migrations successfully applied."
-
-        $cmd.Transaction.Commit()
+        catch{
+            write-host $_.Exception.Message -ForegroundColor Red
+            $cmd.Transaction.Rollback()        
+        }
+        finally{
+            $cmd.Connection.Close()
+        }   
     }
-    catch{
-        write-error $_
-        $cmd.Transaction.Rollback()        
+    catch
+    {
+        write-host $_.Exception.Message -ForegroundColor Red
     }
-    finally{
-        $cmd.Connection.Close()
-    }   
 }
 
 function revert-database
 {
-    if([string]::IsNullOrEmpty($targetMigration))
-    {
-        throw "Target migration not specified."
-    }
-
-    $startupProject = find-startup-project
-    $migrationsDir = find-migrations-directory
-    $migrations = find-revert-migrations $migrationsDir
-    $connectionString = find-connection-string $startupProject
-
-    $cmd = create-command $connectionString    
-
-    try
-    {
-        $appliedMigrations = initialize-versioning $cmd
+    try{
+        Write-Host "Reverting database, pass '-detailed' to see detailed output..." -ForegroundColor Gray
         
-        foreach($migration in $migrations)
+        if([string]::IsNullOrEmpty($targetMigration))
         {
-            execute-revert $migration $appliedMigrations
+            throw "Target migration not specified."
         }
 
-        Write-Host "Database reverted to '$targetMigration' migration."
+        $startupProject = find-startup-project
+        $migrationsDir = find-migrations-directory
+        $migrations = find-revert-migrations $migrationsDir
+        $connectionString = find-connection-string $startupProject
 
-        $cmd.Transaction.Commit()
+        $cmd = create-command $connectionString    
+
+        try
+        {
+            $appliedMigrations = initialize-versioning $cmd
+        
+            if(($migrations | Group).Count -eq 0)
+            {
+                Write-Host "You are probably trying to revert database to the oldest migration which is not possible." -ForegroundColor Yellow
+                Write-Host "Maybe you should use 'update-database' instead." -ForegroundColor Yellow
+                break
+            }
+
+            $wasAnyReverted = $false
+            foreach($migration in $migrations)
+            {              
+                $wasAnyReverted = execute-revert $migration $appliedMigrations
+            }
+
+            if($wasAnyReverted)
+            {
+                Write-Host "Database reverted to '$targetMigration' migration." -ForegroundColor DarkGreen
+            }
+            else{
+                Write-Host "Database seems to be up-to-date." -ForegroundColor DarkGreen
+            }
+
+            $cmd.Transaction.Commit()
+        }
+        catch{
+            write-error $_
+            $cmd.Transaction.Rollback()        
+        }
+        finally{
+            $cmd.Connection.Close()
+        } 
     }
-    catch{
-        write-error $_
-        $cmd.Transaction.Rollback()        
+    catch
+    {
+        write-host $_.Exception.Message -ForegroundColor Red
     }
-    finally{
-        $cmd.Connection.Close()
-    } 
 }
 
 function execute-revert($migration, $appliedMigrations)
@@ -102,12 +134,21 @@ function execute-revert($migration, $appliedMigrations)
 
     if($isNotAlreadyApplied)
     {
-        throw "Migration '$name' is not present in the to database."
+        return $false
     }
 
     [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
 
-    revert-migration  $migrationFile $migrationId $cmd    
+    Write-Host "Reverting migration '$name'..." -ForegroundColor Gray
+
+    revert-migration  $migrationFile $migrationId $cmd $detailed.IsPresent  
+
+    if($detailed.IsPresent)
+    {
+        Write-Host "Migration '$name' reverted." -ForegroundColor Gray
+    }
+
+    return $true
 }
 
 function execute-migration($migration, $appliedMigrations)
@@ -123,19 +164,26 @@ function execute-migration($migration, $appliedMigrations)
                
         if($canBeApplied)
         {
+            Write-Host "Executing migration '$name'..." -ForegroundColor Gray
+            
             [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
 
-            run-migration $migrationFile $migrationId $cmd 
+            run-migration $migrationFile $migrationId $cmd $detailed.IsPresent
             
             $data = find-data-script $name $migrationId
 
             if($data)
             {
-                import-data $data $cmd
+                import-data $data $cmd $detailed.IsPresent
+            }          
+
+            if($detailed.IsPresent)
+            {
+                Write-Host "Migration '$name' executed." -ForegroundColor Gray
             }
         }
         else{
-            throw "Migration '"+$migration.Name+"' cannot be applied because newer migration has been already applied."
+            throw "Migration '$name' cannot be applied because newer migration has been already applied."
         }
     }
 

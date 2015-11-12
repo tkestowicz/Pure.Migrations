@@ -23,30 +23,41 @@ $scriptTypeEnum = @{
 
 function add-migration
 {
-    $migrationId = generate-id    
-    $name = escape-name $name
-    $isNameUnique = is-migration-name-unique $migrationId $name
+    try{
+        $migrationId = generate-id    
+        $name = escape-name $name
+        $isNameUnique = is-migration-name-unique $migrationId $name
 
-    if($isNameUnique -eq $false)
-    {
-        throw "Name of the migration must be unique. Migration with name '$name' already exists."
-    }
+        Write-Host "Creating migration '$name' ..." -ForegroundColor Gray
+    
+        if($isNameUnique -eq $false)
+        {
+            throw "Name of the migration must be unique. Migration with name '$name' already exists."
+        }
 
-    $csproj = find-project-by-name $project
+        $csproj = find-project-by-name $project
 
-    [xml] $csprojXml = get-content $csproj.FullName
+        [xml] $csprojXml = get-content $csproj.FullName
 
-    $itemGroup = ensure-item-group $csprojXml
+        $itemGroup = ensure-item-group $csprojXml
    
-    create-migration $csprojXml $itemGroup $migrationId
-    create-additional-script $scriptTypeEnum.Revert $csprojXml $itemGroup $migrationId 
+        create-migration $csprojXml $itemGroup $migrationId
+        create-additional-script $scriptTypeEnum.Revert $csprojXml $itemGroup $migrationId 
 
-    if($withData)
-    {
-        create-additional-script $scriptTypeEnum.Data $csprojXml $itemGroup $migrationId 
+        if($withData)
+        {
+            create-additional-script $scriptTypeEnum.Data $csprojXml $itemGroup $migrationId 
+        }
+
+        $csprojXml.Save($csproj.FullName)
+
+        Write-Host "Migration successfully created." -ForegroundColor DarkGreen
     }
-
-    $csprojXml.Save($csproj.FullName)
+    catch
+    {
+        write-host $_.Exception.Message -ForegroundColor Red
+    }
+    
 }
 
 function escape-name($name)
