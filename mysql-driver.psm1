@@ -53,16 +53,8 @@ function get-applied-migrations($command)
 
 function run-migration($file, $migrationId, $cmd, $verbose)
 {
-    $query = get-content $file.FullName
+    execute-script $file $cmd $verbose
 
-    if($query.Length -gt 0)
-    {
-        print-verbose $query $verbose  
-
-        $cmd.CommandText = $query
-        $rows = $cmd.ExecuteNonQuery()          
-    }
-    
     $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
     
     $cmd.CommandText = "insert into $Script:migrationsTable(id, migration) values($migrationId, '$name')"
@@ -70,45 +62,81 @@ function run-migration($file, $migrationId, $cmd, $verbose)
     $rows = $cmd.ExecuteNonQuery()
 }
 
+function execute-script($file, $cmd, $verbose)
+{
+    $queries = read-queries $file
+
+    print-verbose-header $verbose
+
+    foreach($query in $queries)
+    {
+        if($query.Length -gt 0)
+        {
+            print-verbose $query $verbose  
+
+            $cmd.CommandText = $query
+            $rows = $cmd.ExecuteNonQuery()          
+        }    
+    }
+
+    print-verbose-footer $verbose
+}
+
 function import-data($file, $cmd, $verbose)
 {
-    $query = get-content $file.FullName
-
-    if($query.Length -gt 0)
-    {
-        print-verbose $query $verbose
-
-        $cmd.CommandText = $query
-        $rows = $cmd.ExecuteNonQuery()
-    }
+    execute-script $file $cmd $verbose
 }
 
 function revert-migration($file, $migrationId, $cmd, $verbose)
 {
-    $query = get-content $file.FullName
-
-    if($query.Length -gt 0)
-    {
-        print-verbose $query $verbose
-
-        $cmd.CommandText = $query
-        $rows = $cmd.ExecuteNonQuery()
-    }
+    execute-script $file $cmd $verbose
 
     $cmd.CommandText = "delete from $Script:migrationsTable where id = $migrationId"
 
     $rows = $cmd.ExecuteNonQuery()
 }
 
+function read-queries($file)
+{
+    $lines = get-content $file.FullName
+
+    $command = ""
+    foreach($line in $lines)
+    {
+        $command = $command+$line
+        if($line.EndsWith(";"))
+        {
+            $command
+            $command = ""
+        }
+    }
+}
+
+function print-verbose-header($verbose)
+{
+    if($verbose)
+    {
+        Write-Host
+        Write-Host "---------start---------" -ForegroundColor Gray
+    }
+}
+
+function print-verbose-footer($verbose)
+{
+    if($verbose)
+    {
+        Write-Host
+        Write-Host "---------end---------" -ForegroundColor Gray
+        Write-Host
+    }
+}
+
 function print-verbose($text, $verbose)
 {
     if($verbose)
     {
-        Write-Host "------------------" -ForegroundColor Gray
         Write-Host
         Write-Host $text -ForegroundColor Gray
-        Write-Host
-        Write-Host "------------------" -ForegroundColor Gray
     }     
 }
 

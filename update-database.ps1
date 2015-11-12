@@ -168,12 +168,15 @@ function execute-migration($migration, $appliedMigrations)
             
             [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
 
+            Write-Host "--- Schema migration" -ForegroundColor Gray
+
             run-migration $migrationFile $migrationId $cmd $detailed.IsPresent
             
             $data = find-data-script $name $migrationId
 
             if($data)
             {
+                Write-Host "--- Executing seed" -ForegroundColor Gray
                 import-data $data $cmd $detailed.IsPresent
             }          
 
