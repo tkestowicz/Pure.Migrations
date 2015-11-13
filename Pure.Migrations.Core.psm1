@@ -3,7 +3,7 @@
     $driver
 )
 
-& "$PSCommandPath\..\load-dte.ps1"
+& "$PSScriptRoot\load-dte.ps1"
 
 $solutionPath = Split-Path $DTE.Solution.Properties.Item('Path').Value
 

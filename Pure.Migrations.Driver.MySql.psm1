@@ -1,6 +1,8 @@
 ﻿#todo: poprawić ścieżke
 Add-Type -Path "D:\Projects\planit\PlanIt\packages\MySql.Data.6.9.7\lib\net45\MySql.Data.dll"
 
+Import-Module $PSScriptRoot\Pure.Migrations.Driver.Core.psm1 -Force -DisableNameChecking
+
 $Script:migrationsTable = "schema_versioning"
 
 function create-command($connectionString)
@@ -62,31 +64,6 @@ function run-migration($file, $migrationId, $cmd, $verbose)
     $rows = $cmd.ExecuteNonQuery()
 }
 
-function execute-script($file, $cmd, $verbose)
-{
-    $queries = read-queries $file
-
-    print-verbose-header $verbose
-
-    foreach($query in $queries)
-    {
-        if($query.Length -gt 0)
-        {
-            print-verbose $query $verbose  
-
-            $cmd.CommandText = $query
-            $rows = $cmd.ExecuteNonQuery()          
-        }    
-    }
-
-    print-verbose-footer $verbose
-}
-
-function import-data($file, $cmd, $verbose)
-{
-    execute-script $file $cmd $verbose
-}
-
 function revert-migration($file, $migrationId, $cmd, $verbose)
 {
     execute-script $file $cmd $verbose
@@ -94,50 +71,6 @@ function revert-migration($file, $migrationId, $cmd, $verbose)
     $cmd.CommandText = "delete from $Script:migrationsTable where id = $migrationId"
 
     $rows = $cmd.ExecuteNonQuery()
-}
-
-function read-queries($file)
-{
-    $lines = get-content $file.FullName
-
-    $command = ""
-    foreach($line in $lines)
-    {
-        $command = $command+$line
-        if($line.EndsWith(";"))
-        {
-            $command
-            $command = ""
-        }
-    }
-}
-
-function print-verbose-header($verbose)
-{
-    if($verbose)
-    {
-        Write-Host
-        Write-Host "---------start---------" -ForegroundColor Gray
-    }
-}
-
-function print-verbose-footer($verbose)
-{
-    if($verbose)
-    {
-        Write-Host
-        Write-Host "---------end---------" -ForegroundColor Gray
-        Write-Host
-    }
-}
-
-function print-verbose($text, $verbose)
-{
-    if($verbose)
-    {
-        Write-Host
-        Write-Host $text -ForegroundColor Gray
-    }     
 }
 
 Export-ModuleMember -Function create-command, initialize-versioning, run-migration, import-data, revert-migration
