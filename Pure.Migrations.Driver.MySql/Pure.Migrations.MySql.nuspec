@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>Pure.Migrations.MySql</id>
+    <version>99.99.99-dev</version>
+    <authors>Tymoteusz Kęstowicz</authors>
+    <owners>Tymoteusz Kęstowicz</owners>
+	<licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
+    <projectUrl>https://github.com/tkestowicz/pure.migrations</projectUrl>
+    <!--<iconUrl>http://ICON_URL_HERE_OR_DELETE_THIS_LINE</iconUrl>-->
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Provides MySql driver for Pure.Migrations engine.</description>
+    <copyright>Copyright 2015</copyright>
+    <tags>migrations mysql</tags>
+    <dependencies>
+      <dependency id="Pure.Migrations.Core" version="[99.99.99-dev]" />
+      <dependency id="MySql.Data" version="6.7.9" />
+    </dependencies>
+  </metadata>
+</package>

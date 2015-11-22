@@ -1,7 +1,12 @@
-﻿#todo: poprawić ścieżke
-Add-Type -Path "D:\Projects\planit\PlanIt\packages\MySql.Data.6.9.7\lib\net45\MySql.Data.dll"
+﻿param(
+    [Parameter(Mandatory=$true)]
+    $packagesPath
+)
 
-Import-Module $PSScriptRoot\Pure.Migrations.Driver.Core.psm1 -Force -DisableNameChecking
+$mysqlDirectory = [System.IO.Directory]::EnumerateDirectories($packagesPath, "MySql.Data*") | Sort-Object Name -Descending | Select-Object -First 1
+$mysqlLibPath = Join-Path $mysqlDirectory "lib\net45\MySql.Data.dll"
+
+Add-Type -Path $mysqlLibPath
 
 $Script:migrationsTable = "schema_versioning"
 

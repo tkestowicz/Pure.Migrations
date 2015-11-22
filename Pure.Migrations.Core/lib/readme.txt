@@ -1,0 +1,1 @@
+This file is a hack for the problem described here: https://danlimerick.wordpress.com/2011/10/01/getting-around-nugets-external-package-dependency-problem/.

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>Pure.Migrations.Core</id>
+    <version>99.99.99-dev</version>
+    <authors>Tymoteusz Kęstowicz</authors>
+    <owners>Tymoteusz Kęstowicz</owners>
+    <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
+    <projectUrl>https://github.com/tkestowicz/pure.migrations</projectUrl>
+    <!--<iconUrl>http://ICON_URL_HERE_OR_DELETE_THIS_LINE</iconUrl>-->
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Provides set of powershell cmd-lets which allow you to generate incremental scripts and update/revert database. It is inspired by EntityFramework approach.</description>
+    <copyright>Copyright 2015</copyright>
+    <tags>migrations</tags>
+  </metadata>
+</package>

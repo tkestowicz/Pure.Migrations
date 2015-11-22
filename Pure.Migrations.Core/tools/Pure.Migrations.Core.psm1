@@ -1,13 +1,16 @@
 ﻿param(
     [Parameter(Mandatory=$true)]
-    $driver
+    $driver,
+    [Parameter(Mandatory=$true)]
+    $coreToolsPath,
+    [Parameter(Mandatory=$true)]
+    $packagesPath
 )
-
-& "$PSScriptRoot\load-dte.ps1"
 
 $solutionPath = Split-Path $DTE.Solution.Properties.Item('Path').Value
 
-Import-Module $driver -Force -DisableNameChecking
+Import-Module $driver -ArgumentList $packagesPath -Force -DisableNameChecking
+Import-Module $coreToolsPath\Pure.Migrations.Driver.Core.psd1 -Force -DisableNameChecking
 
 $scriptTypeEnum = @{
       Migration = 1
@@ -539,4 +542,4 @@ function create-script-name($id, $type)
     throw "Unkown script type"
 }
 
-Export-ModuleMember -Function new-migration, migrate-database, revert-database
+Export-ModuleMember -Function new-migration, migrate-database, revert-database, execute-script, import-data
