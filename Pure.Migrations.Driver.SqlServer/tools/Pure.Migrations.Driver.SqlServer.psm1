@@ -3,25 +3,17 @@
     $packagesPath
 )
 
-$mysqlDirectory = [System.IO.Directory]::EnumerateDirectories($packagesPath, "MySql.Data*") | Sort-Object Name -Descending | Select-Object -First 1
-$mysqlLibPath = Join-Path $mysqlDirectory "lib\net45\MySql.Data.dll"
-
-Add-Type -Path $mysqlLibPath
-
 $Script:migrationsTable = "schema_versioning"
 
 function create-command($connectionString)
 {    
-    $connection = New-Object MySql.Data.MySqlClient.MySqlConnection $connectionString.ConnectionString
+    $connection = New-Object System.Data.SqlClient.SqlConnection $connectionString.ConnectionString
        
     $connection.Open()
 
     $cmd = $connection.CreateCommand()
 
     $cmd.Transaction = $connection.BeginTransaction()
-    $cmd.CommandText = "SET autocommit = 0"
-
-    $rows = $cmd.ExecuteNonQuery()
 
     return $cmd
 }
@@ -77,6 +69,7 @@ function revert-migration($file, $migrationId, $cmd, $verbose)
 
     $rows = $cmd.ExecuteNonQuery()
 }
+
 
 function read-queries($file)
 {

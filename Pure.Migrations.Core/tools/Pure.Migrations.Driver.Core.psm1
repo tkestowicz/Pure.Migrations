@@ -24,22 +24,6 @@ function import-data($file, $cmd, $verbose)
     execute-script $file $cmd $verbose
 }
 
-function read-queries($file)
-{
-    $lines = get-content $file.FullName
-
-    $command = ""
-    foreach($line in $lines)
-    {
-        $command = $command+$line
-        if($line.EndsWith(";"))
-        {
-            $command
-            $command = ""
-        }
-    }
-}
-
 function print-verbose-header($verbose)
 {
     if($verbose)
