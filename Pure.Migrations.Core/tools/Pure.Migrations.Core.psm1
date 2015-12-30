@@ -159,7 +159,7 @@ function revert-database(
             if(($migrations | Group).Count -eq 0)
             {
                 Write-Host "You are probably trying to revert database to the oldest migration which is not possible." -ForegroundColor Yellow
-                Write-Host "Maybe you should use 'update-database' instead." -ForegroundColor Yellow
+                Write-Host "Maybe you should use 'migrate-database' instead." -ForegroundColor Yellow
                 break
             }
 
