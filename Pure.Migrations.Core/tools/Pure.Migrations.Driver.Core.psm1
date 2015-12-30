@@ -1,4 +1,10 @@
-﻿
+﻿param(
+    [Parameter(Mandatory=$true)]
+    $driver
+)
+
+Import-Module $driver -ArgumentList $packagesPath -Force -DisableNameChecking
+
 function execute-script($file, $cmd, $verbose)
 {
     $queries = read-queries $file

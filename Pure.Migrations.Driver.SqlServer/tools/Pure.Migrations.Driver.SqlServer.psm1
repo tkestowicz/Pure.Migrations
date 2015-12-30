@@ -3,7 +3,8 @@
     $packagesPath
 )
 
-$Script:migrationsTable = "schema_versioning"
+$Script:migrationsSchema = "PureMigrations"
+$Script:migrationsTable = "SchemaVersioning"
 
 function create-command($connectionString)
 {    
@@ -20,11 +21,15 @@ function create-command($connectionString)
 
 function enable-versioning($command)
 {        
-    $command.CommandText = "CREATE TABLE IF NOT EXISTS $Script:migrationsTable (
-                                Id BIGINT UNSIGNED PRIMARY KEY, 
-                                Migration VARCHAR(150) NOT NULL, 
-                                CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                            )"
+    $command.CommandText = "IF NOT EXISTS( SELECT s.name, t.name FROM sys.tables as t INNER JOIN sys.schemas as s on t.schema_id=s.schema_id WHERE t.name = '$Script:migrationsTable' AND s.name = '$Script:migrationsSchema')
+                            BEGIN
+	                            	EXEC('CREATE SCHEMA $Script:migrationsSchema')
+	                                CREATE TABLE [$Script:migrationsSchema].[$Script:migrationsTable] (
+									    Id BIGINT PRIMARY KEY, 
+									    Migration VARCHAR(200) NOT NULL, 
+									    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+								    )
+                            END"
                         
     $rows = $command.ExecuteNonQuery()
 }
@@ -40,7 +45,7 @@ function initialize-versioning($command)
 
 function get-applied-migrations($command)
 {
-    $command.CommandText = "select id from $Script:migrationsTable order by id desc"
+    $command.CommandText = "SELECT Id FROM [$Script:migrationsSchema].[$Script:migrationsTable] ORDER BY Id DESC"
     $reader = $command.ExecuteReader()
 
     while($reader.Read())
@@ -56,7 +61,7 @@ function run-migration($file, $migrationId, $cmd, $verbose)
 
     $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
     
-    $cmd.CommandText = "insert into $Script:migrationsTable(id, migration) values($migrationId, '$name')"
+    $cmd.CommandText = "INSERT INTO [$Script:migrationsSchema].[$Script:migrationsTable](Id, Migration) VALUES($migrationId, '$name')"
 
     $rows = $cmd.ExecuteNonQuery()
 }
@@ -65,7 +70,7 @@ function revert-migration($file, $migrationId, $cmd, $verbose)
 {
     execute-script $file $cmd $verbose
 
-    $cmd.CommandText = "delete from $Script:migrationsTable where id = $migrationId"
+    $cmd.CommandText = "DELETE FROM [$Script:migrationsSchema].[$Script:migrationsTable] WHERE Id = $migrationId"
 
     $rows = $cmd.ExecuteNonQuery()
 }
@@ -73,17 +78,17 @@ function revert-migration($file, $migrationId, $cmd, $verbose)
 
 function read-queries($file)
 {
-    $lines = get-content $file.FullName
+    $script = [System.Io.File]::ReadAllText($file.FullName)
 
-    $command = ""
-    foreach($line in $lines)
+    $options = [System.Text.RegularExpressions.RegexOptions] "Multiline, IgnorePatternWhitespace, IgnoreCase"
+    
+    $statements = [System.Text.RegularExpressions.Regex]::Split($script, "^\s*GO\s* ($ | \-\- .*$)", $options)
+
+    $commands = $statements | Where { [string]::IsNullOrWhiteSpace($_) -eq $False }
+
+    foreach($command in $commands)
     {
-        $command = $command+$line
-        if($line.EndsWith(";"))
-        {
-            $command
-            $command = ""
-        }
+        $command.Trim("\r").Trim("\n").Trim()
     }
 }
 

@@ -10,7 +10,7 @@
 $solutionPath = Split-Path $DTE.Solution.Properties.Item('Path').Value
 
 Import-Module $driver -ArgumentList $packagesPath -Force -DisableNameChecking
-Import-Module $coreToolsPath\Pure.Migrations.Driver.Core.psd1 -Force -DisableNameChecking
+Import-Module $coreToolsPath\Pure.Migrations.Driver.Core.psd1 -ArgumentList $driver -Force -DisableNameChecking
 
 $scriptTypeEnum = @{
       Migration = 1
@@ -111,6 +111,7 @@ function migrate-database(
         }
         catch{
             write-host $_.Exception.Message -ForegroundColor Red
+
             $cmd.Transaction.Rollback()        
         }
         finally{

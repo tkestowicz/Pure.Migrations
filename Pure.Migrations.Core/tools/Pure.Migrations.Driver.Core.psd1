@@ -23,9 +23,6 @@
     # Minimum version of the Windows PowerShell engine required by this module
     PowerShellVersion = '2.0'
 
-    # Name of the Windows PowerShell host required by this module
-    PowerShellHostName = 'Package Manager Host'
-
     # Minimum version of the Windows PowerShell host required by this module
     PowerShellHostVersion = '1.2'
 
