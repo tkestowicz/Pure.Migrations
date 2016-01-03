@@ -93,12 +93,19 @@ function migrate-database(
 
         try{
             $appliedMigrations = initialize-versioning $cmd
- 
-            if(($migrations | group).Count -eq $appliedMigrations.Length)
+
+            $diff = $migrations | ? { $appliedMigrations -notcontains (get-migration-id $_) }
+        
+            if(($migrations | group).Count -eq $appliedMigrations.Length -and $diff.Count -eq 0)
             {
                 Write-Host "Database is up to date." -ForegroundColor Gray
                 return
             }
+
+            $names = $diff | Select-Object -ExpandProperty Name
+
+            Write-Host "Following migrations will be applied: " -ForegroundColor DarkYellow
+            write-host ($names -join ", ")
         
             foreach($migration in $migrations)
             {           
