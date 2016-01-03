@@ -490,6 +490,11 @@ function is-migration-name-unique($migrationId, $name)
 {
     [System.IO.DirectoryInfo] $dir = [io.path]::Combine($solutionPath, $project, $migrationsDir)
 
+    if($dir.Exists -eq $false)
+    {
+        $dir.Create()
+    }
+
     ($dir.GetFiles() | where { $_.Name -match "^[0-9]+_"+$name+".sql$" } | Group ).Count -eq 0
 }
 
