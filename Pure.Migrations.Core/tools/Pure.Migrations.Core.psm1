@@ -94,7 +94,22 @@ function migrate-database(
         try{
             $appliedMigrations = initialize-versioning $cmd
 
-            $diff = $migrations | ? { $appliedMigrations -notcontains (get-migration-id $_) }
+            if([string]::IsNullOrEmpty($targetMigration) -eq $false){
+
+                $lastMigration = $migrations | where { (get-migration-name $_) -eq $targetMigration } | Select-Object -First 1
+
+                if($lastMigration -eq $null)
+                {
+                    Write-Host "Migration named '$targetMigration' does not exist." -ForegroundColor Red
+                    return
+                }
+
+                $lastMigrationId = get-migration-id $lastMigration
+
+                $migrations = $migrations | where { (get-migration-id $_) -le $lastMigrationId }
+            }
+
+            $diff = $migrations | ? { $appliedMigrations -notcontains (get-migration-id $_) }| Select-Object -ExpandProperty Name
         
             if(($migrations | group).Count -eq $appliedMigrations.Length -and $diff.Count -eq 0)
             {
@@ -102,10 +117,8 @@ function migrate-database(
                 return
             }
 
-            $names = $diff | Select-Object -ExpandProperty Name
-
             Write-Host "Following migrations will be applied: " -ForegroundColor DarkYellow
-            write-host ($names -join ", ")
+            Write-host ($diff -join ", ")
         
             foreach($migration in $migrations)
             {           
@@ -162,26 +175,24 @@ function revert-database(
         try
         {
             $appliedMigrations = initialize-versioning $cmd
-        
-            if(($migrations | Group).Count -eq 0)
-            {
-                Write-Host "You are probably trying to revert database to the oldest migration which is not possible." -ForegroundColor Yellow
-                Write-Host "Maybe you should use 'migrate-database' instead." -ForegroundColor Yellow
-                break
-            }
 
-            $wasAnyReverted = $false
-            foreach($migration in $migrations)
-            {              
-                $wasAnyReverted = execute-revert $migration $appliedMigrations
-            }
-
-            if($wasAnyReverted)
+            $diff = $migrations | where { $appliedMigrations -contains (get-migration-id $_) } | Select-Object -ExpandProperty Name
+            
+            if($diff.Count -eq 0)
             {
-                Write-Host "Database reverted to '$targetMigration' migration." -ForegroundColor DarkGreen
+                 Write-Host "Database is up to date." -ForegroundColor Gray
             }
             else{
-                Write-Host "Database seems to be up-to-date." -ForegroundColor DarkGreen
+
+                Write-Host "Following migrations will be reverted: " -ForegroundColor DarkYellow
+                Write-host ($diff -join ", ")
+
+                foreach($migration in $migrations)
+                {              
+                    execute-revert $migration $appliedMigrations
+                }
+
+                Write-Host "Database reverted to '$targetMigration' migration." -ForegroundColor DarkGreen
             }
 
             $cmd.Transaction.Commit()
@@ -205,13 +216,6 @@ function execute-revert($migration, $appliedMigrations)
     $name = get-migration-name $migration
     $migrationId = get-migration-id $migration
 
-    $isNotAlreadyApplied = none($appliedMigrations | where { $_ -eq $migrationId })
-
-    if($isNotAlreadyApplied)
-    {
-        return $false
-    }
-
     [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
 
     Write-Host "Reverting migration '$name'..." -ForegroundColor Gray
@@ -222,8 +226,6 @@ function execute-revert($migration, $appliedMigrations)
     {
         Write-Host "Migration '$name' reverted." -ForegroundColor Gray
     }
-
-    return $true
 }
 
 function execute-migration($migration, $appliedMigrations)
@@ -323,6 +325,22 @@ function find-revert-migrations($migrationsDir)
 {
     [System.IO.DirectoryInfo] $migrations = get-migrations-fullpath
     $revertScripts = $migrations.GetFiles() | where { $_.Name -match "[0-9]+_revert_.*.sql" } | Sort-Object Name -Descending
+
+    $oldest = $revertScripts | Select-Object -ExpandProperty Name -First 1
+
+    $target = $revertScripts | where { (get-migration-name $_) -eq $targetMigration } | Select-Object -First 1
+
+    if($target -eq $null)
+    {
+        throw "Migration named '$targetMigration' does not exist."
+    }
+
+    if($oldest -match $targetMigration)
+    {
+        Write-Host "You are probably trying to revert database to the oldest migration which is not possible." -ForegroundColor Yellow
+        Write-Host "Maybe you should use 'migrate-database' instead." -ForegroundColor Yellow
+        break
+    }
 
     foreach($script in $revertScripts)
     {
