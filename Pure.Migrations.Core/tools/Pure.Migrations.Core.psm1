@@ -86,7 +86,7 @@ function migrate-database(
         
         $startupProject = find-startup-project
         $migrationsDir = find-migrations-directory
-        $migrations = find-migrations $migrationsDir
+        $migrationsToApply = find-migrations $migrationsDir
         $connectionString = find-connection-string $startupProject
 
         $cmd = create-command $connectionString    
@@ -96,31 +96,31 @@ function migrate-database(
 
             if([string]::IsNullOrEmpty($targetMigration) -eq $false){
 
-                $lastMigration = $migrations | where { (get-migration-name $_) -eq $targetMigration } | Select-Object -First 1
+                $lastMigrationToApply = $migrationsToApply | where { (get-migration-name $_) -eq $targetMigration } | Select-Object -First 1
 
-                if($lastMigration -eq $null)
+                if($lastMigrationToApply -eq $null)
                 {
                     Write-Host "Migration named '$targetMigration' does not exist." -ForegroundColor Red
                     return
                 }
 
-                $lastMigrationId = get-migration-id $lastMigration
+                $lastMigrationId = get-migration-id $lastMigrationToApply
 
-                $migrations = $migrations | where { (get-migration-id $_) -le $lastMigrationId }
+                $migrationsToApply = $migrationsToApply | where { (get-migration-id $_) -le $lastMigrationId }
             }
 
-            $diff = $migrations | ? { $appliedMigrations -notcontains (get-migration-id $_) }| Select-Object -ExpandProperty Name
+            $notAppliedMigrations = $migrationsToApply | ? { $appliedMigrations -notcontains (get-migration-id $_) }
         
-            if(($migrations | group).Count -eq $appliedMigrations.Length -and $diff.Count -eq 0)
+            if($notAppliedMigrations.Count -eq 0)
             {
                 Write-Host "Database is up to date." -ForegroundColor Gray
                 return
             }
 
             Write-Host "Following migrations will be applied: " -ForegroundColor DarkYellow
-            Write-host ($diff -join ", ")
+            Write-host (($notAppliedMigrations| Select-Object -ExpandProperty Name) -join ", ")
         
-            foreach($migration in $migrations)
+            foreach($migration in $notAppliedMigrations)
             {           
                 execute-migration $migration $appliedMigrations
             }
@@ -167,7 +167,7 @@ function revert-database(
 
         $startupProject = find-startup-project
         $migrationsDir = find-migrations-directory
-        $migrations = find-revert-migrations $migrationsDir
+        $migrations = find-revert-migrations $migrationsDir ([ref] $targetMigration)
         $connectionString = find-connection-string $startupProject
 
         $cmd = create-command $connectionString    
@@ -175,30 +175,32 @@ function revert-database(
         try
         {
             $appliedMigrations = initialize-versioning $cmd
-
-            $diff = $migrations | where { $appliedMigrations -contains (get-migration-id $_) } | Select-Object -ExpandProperty Name
             
-            if($diff.Count -eq 0)
+            $migrationsToRevert = $migrations | where { $appliedMigrations -contains (get-migration-id $_) }
+            
+            if($migrationsToRevert.Count -eq 0)
             {
                  Write-Host "Database is up to date." -ForegroundColor Gray
+                 return
             }
-            else{
 
-                Write-Host "Following migrations will be reverted: " -ForegroundColor DarkYellow
-                Write-host ($diff -join ", ")
+            check-revert-integrity $migrations $appliedMigrations
+            
+            Write-Host "Following migrations will be reverted: " -ForegroundColor DarkYellow
+            Write-host (($migrationsToRevert | Select-Object -ExpandProperty Name) -join ", ")
 
-                foreach($migration in $migrations)
-                {              
-                    execute-revert $migration $appliedMigrations
-                }
-
-                Write-Host "Database reverted to '$targetMigration' migration." -ForegroundColor DarkGreen
+            foreach($migration in $migrationsToRevert)
+            {              
+                execute-revert $migration $appliedMigrations
             }
+
+            Write-Host ("Database reverted to '"+$targetMigration.Name+"' migration.") -ForegroundColor DarkGreen
 
             $cmd.Transaction.Commit()
         }
         catch{
-            write-error $_
+            write-host $_.Exception.Message -ForegroundColor Red
+
             $cmd.Transaction.Rollback()        
         }
         finally{
@@ -208,6 +210,29 @@ function revert-database(
     catch
     {
         write-host $_.Exception.Message -ForegroundColor Red
+    }
+}
+
+function check-revert-integrity($migrationsOnDisk, $migrationsInDatabase){
+    
+    $migrationsOnDisk = $migrationsOnDisk | foreach { get-migration-id $_ }
+
+    $migrationsPresentInDatabase = $migrationsOnDisk | where { $migrationsInDatabase -contains $_ }
+
+    $diff = $migrationsOnDisk | where { $migrationsPresentInDatabase -notcontains $_ }
+
+    if($diff.Count -gt 0)
+    {    
+        throw "Database cannot be reverted to '"+$targetMigration.Name+"' migration. Inconsistency detected between migrations and current schema version."
+    }
+     
+    $migrationsWhichShouldBePresentOnDisk = $migrationsInDatabase | where { $_ -gt $targetMigration.Id }
+
+    $diff = $migrationsWhichShouldBePresentOnDisk | where { $migrationsOnDisk -notcontains $_ }
+    
+    if($diff.Count -gt 0)
+    {
+        throw "Database cannot be reverted to '"+$targetMigration.Name+"' migration. Inconsistency detected between migrations and current schema version."
     }
 }
 
@@ -222,6 +247,8 @@ function execute-revert($migration, $appliedMigrations)
 
     revert-migration  $migrationFile $migrationId $cmd $detailed.IsPresent  
 
+    $appliedMigrations = $appliedMigrations | where { $_ -ne $migrationId }
+
     if($detailed.IsPresent)
     {
         Write-Host "Migration '$name' reverted." -ForegroundColor Gray
@@ -232,39 +259,34 @@ function execute-migration($migration, $appliedMigrations)
 {
     $name = get-migration-name $migration
     $migrationId = get-migration-id $migration
-    
-    $isNotAlreadyApplied = none($appliedMigrations | where { $_ -eq $migrationId })
-             
-    if($isNotAlreadyApplied){
 
-        $canBeApplied = none($appliedMigrations | where { $_ -gt $migrationId })
+    $canBeApplied = none($appliedMigrations | where { $_ -gt $migrationId })
                
-        if($canBeApplied)
+    if($canBeApplied)
+    {
+        Write-Host "Executing migration '$name'..." -ForegroundColor Gray
+            
+        [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
+
+        Write-Host "--- Schema migration" -ForegroundColor Gray
+
+        run-migration $migrationFile $migrationId $cmd $detailed.IsPresent
+            
+        $data = find-data-script $name $migrationId
+
+        if($data)
         {
-            Write-Host "Executing migration '$name'..." -ForegroundColor Gray
-            
-            [System.IO.FileInfo] $migrationFile = get-script-fullpath $migration.Name
+            Write-Host "--- Executing seed" -ForegroundColor Gray
+            import-data $data $cmd $detailed.IsPresent
+        }          
 
-            Write-Host "--- Schema migration" -ForegroundColor Gray
-
-            run-migration $migrationFile $migrationId $cmd $detailed.IsPresent
-            
-            $data = find-data-script $name $migrationId
-
-            if($data)
-            {
-                Write-Host "--- Executing seed" -ForegroundColor Gray
-                import-data $data $cmd $detailed.IsPresent
-            }          
-
-            if($detailed.IsPresent)
-            {
-                Write-Host "Migration '$name' executed." -ForegroundColor Gray
-            }
+        if($detailed.IsPresent)
+        {
+            Write-Host "Migration '$name' executed." -ForegroundColor Gray
         }
-        else{
-            throw "Migration '$name' cannot be applied because newer migration has been already applied."
-        }
+    }
+    else{
+        throw "Migration '$name' cannot be applied because newer migration has been already applied."
     }
 
     if($name -eq $targetMigration)
@@ -321,30 +343,37 @@ function find-migrations($migrationsDir)
     $migrationsDir.ProjectItems | where { $_.Name -notmatch "^[0-9]+_(data|revert)_.*.sql$" }
 }
 
-function find-revert-migrations($migrationsDir)
+function find-revert-migrations($migrationsDir, [ref]$targetMigration)
 {
     [System.IO.DirectoryInfo] $migrations = get-migrations-fullpath
     $revertScripts = $migrations.GetFiles() | where { $_.Name -match "[0-9]+_revert_.*.sql" } | Sort-Object Name -Descending
 
     $oldest = $revertScripts | Select-Object -ExpandProperty Name -First 1
 
-    $target = $revertScripts | where { (get-migration-name $_) -eq $targetMigration } | Select-Object -First 1
+    $target = $revertScripts | where { (get-migration-name $_) -eq $targetMigration.Value } | Select-Object -First 1
 
     if($target -eq $null)
     {
-        throw "Migration named '$targetMigration' does not exist."
+        throw "Migration named '"+$targetMigration.Value+"' does not exist."
+    }
+    
+    $targetParams = @{
+        Id = get-migration-id $target
+        Name = $targetMigration.Value
+        Migration = $target
     }
 
-    if($oldest -match $targetMigration)
+    $targetMigration.Value = New-Object -TypeName PsObject -Prop $targetParams
+
+    if($oldest -eq $targetMigration.Value.Migration)
     {
-        Write-Host "You are probably trying to revert database to the oldest migration which is not possible." -ForegroundColor Yellow
-        Write-Host "Maybe you should use 'migrate-database' instead." -ForegroundColor Yellow
+        Write-Host "You are trying to revert database to the oldest migration which is not possible." -ForegroundColor Yellow
         break
     }
 
     foreach($script in $revertScripts)
     {
-        if($script.Name -match $targetMigration)
+        if($script.Name -eq $targetMigration.Value.Migration)
         {
             break
         }   
