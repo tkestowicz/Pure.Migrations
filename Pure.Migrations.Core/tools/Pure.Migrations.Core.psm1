@@ -120,12 +120,17 @@ function migrate-database(
             Write-Host "Following migrations will be applied: " -ForegroundColor DarkYellow
             Write-host (($notAppliedMigrations| Select-Object -ExpandProperty Name) -join ", ")
         
+            $watch = [System.Diagnostics.Stopwatch]::StartNew()
+
             foreach($migration in $notAppliedMigrations)
             {           
                 execute-migration $migration $appliedMigrations
             }
 
+            $watch.Stop()
+
             Write-Host "All migrations successfully applied." -ForegroundColor DarkGreen
+            Write-host ([string]::Format("Migration took {0} seconds.", $watch.Elapsed.Seconds)) -ForegroundColor Gray
 
             $cmd.Transaction.Commit()
         }
@@ -189,12 +194,17 @@ function revert-database(
             Write-Host "Following migrations will be reverted: " -ForegroundColor DarkYellow
             Write-host (($migrationsToRevert | Select-Object -ExpandProperty Name) -join ", ")
 
+            $watch = [System.Diagnostics.Stopwatch]::StartNew()
+
             foreach($migration in $migrationsToRevert)
             {              
                 execute-revert $migration $appliedMigrations
             }
 
+            $watch.Stop()
+
             Write-Host ("Database reverted to '"+$targetMigration.Name+"' migration.") -ForegroundColor DarkGreen
+            Write-host ([string]::Format("Revert took {0} seconds.", $watch.Elapsed.Seconds)) -ForegroundColor Gray
 
             $cmd.Transaction.Commit()
         }
