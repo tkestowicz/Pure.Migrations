@@ -32,15 +32,49 @@ Each driver depends on `Pure.Migrations.Core` package which will be installed au
 
 **Create new migration**
 
-```new-migration -name [name] -project [project] -migrationsDir [directory with migrations (default: Migrations)] [-force] [-withData]```
+```new-migration -name <string> -project <string> [-migrationsDir <string>] [-force] [-withData]```
+
+ Option                   | Description
+--------------------------|--------------------------
+`-name <string>`          | Specifies the name of the custom script. 
+`-project <string>`       | Specifies the Visual Studio project where the scripts will be created. 
+`-migrationsDir <string>` | Specifies the name of the directory in the selected project that contains all <br> migration scripts. If ommited, the directory will be named "**Migrations**".
+`-force`                  | Overwrites all custom scripts with provided name. 
+`-withData`               | Generates separate script for data import (seed script). 
 
 **Update database schema to target version**
 
-```migrate-database -project [project] -migrationsDir [directory with migrations (default: Migrations)] -connectionStringName [connStringName] -targetMigration [migrationName] [-detailed]```
+```migrate-database -project <string> [-migrationsDir <string>] [-connectionStringName <string>] [-targetMigration <string>] [-detailed]```
+
+ Option                          | Description
+---------------------------------|---------------------------------
+`-project <string>`              | Specifies the Visual Studio project where the migration scripts are located. 
+`-migrationsDir <string>`        | Specifies the name of the directory in the selected project that contains all <br> migration scripts. If ommited, the directory will be named "**Migrations**".
+`-connectionStringName <string>` | Specifies the name of a connection string to use from the application’s <br> configuration file located in a Visual Studio project which is set as `startup` project.
+`-targetMigration <string>`      | Specifies the name of a particular script to update the database to. <br>If ommited, all scripts will be executed.
+`-detailed`                      | Writes detailed (verbose) information about command execution to the console. 
 
 **Revert database schema to target version**
 
-```revert-database -project [project] -migrationsDir [directory with migrations (default: Migrations)] -connectionStringName [connStringName] -targetMigration [migrationName] [-detailed]```
+```revert-database -project <string> [-migrationsDir <string>] [-connectionStringName <string>] [-targetMigration <string>] [-detailed]```
+
+ Option                          | Description
+---------------------------------|---------------------------------
+`-project <string>`              | Specifies the Visual Studio project where the migration scripts are located. 
+`-migrationsDir <string>`        | Specifies the name of the directory in the selected project that contains all <br> migration scripts. If ommited, the directory will be named "**Migrations**".
+`-connectionStringName <string>` | Specifies the name of a connection string to use from the application’s <br> configuration file located in a Visual Studio project which is set as `startup` project.
+`-targetMigration <string>`      | Specifies the name of a particular script to update the database to. <br>If ommited, all scripts will be executed.
+`-detailed`                      | Writes detailed (verbose) information about command execution to the console. 
+
+## Error messages explanations
+
+The table below contains error messages with explanations which you can see while using the engine. Only not self-explanatory messages were described.
+
+Message | Explanation
+---------|-----------
+*Database cannot be reverted to '`migration name`' migration. Inconsistency detected between migrations and current schema version.* | Occurs when *SchemaVersion* table in the database is corrupted or some scripts on a disk are missing (only `revert-database` command).
+*Migration '`migration name`' cannot be applied because newer migration has been already applied.*| Occurs when your database has newer script or scripts applied (only `migrate-database` command). <br>**Example:** *you work on a branch A and create a bunch of scripts. Then you switch to branch B, create some other scripts and apply them to the database. Next you switch back to branch A and try to apply older scripts what is not possible.*
+*You are trying to revert database to the oldest migration which is not possible.* | Occurs when you will specify first script as a `-targetMigration` (only `revert-database` command).
 
 ## TODO
 
@@ -48,6 +82,7 @@ Each driver depends on `Pure.Migrations.Core` package which will be installed au
 - [ ] Add support for PostgreSql database
 - [ ] Add support for MSBuild (with no need of Visual Studio)
 - [ ] Add 'squash' command which will merge a set of scripts into one
+- [ ] Add '-startupProject' parameter
 - [ ] ...
 
 ## Copyright
