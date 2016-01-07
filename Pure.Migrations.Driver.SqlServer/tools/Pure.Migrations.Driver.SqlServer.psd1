@@ -3,7 +3,7 @@
     ModuleToProcess = 'Pure.Migrations.Driver.SqlServer.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.0.0'
+    ModuleVersion = '1.0.0.1'
 
     # ID used to uniquely identify this module
     GUID = '91C6827A-2B44-4D3D-B5DA-382A5A4D17D2'
@@ -27,7 +27,7 @@
     PowerShellHostVersion = '1.2'
 
     # Minimum version of the .NET Framework required by this module
-    DotNetFrameworkVersion = '4.5'
+    DotNetFrameworkVersion = '2.0'
 
     # Minimum version of the common language runtime (CLR) required by this module
     CLRVersion = ''

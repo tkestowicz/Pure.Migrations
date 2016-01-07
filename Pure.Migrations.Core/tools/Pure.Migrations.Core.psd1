@@ -3,7 +3,7 @@
     ModuleToProcess = 'Pure.Migrations.Core.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.0.0'
+    ModuleVersion = '1.0.0.1'
 
     # ID used to uniquely identify this module
     GUID = 'E6B8E43D-AA4C-4F57-BB05-819D2DAD8BEB'
@@ -27,7 +27,7 @@
     PowerShellHostVersion = '1.2'
 
     # Minimum version of the .NET Framework required by this module
-    DotNetFrameworkVersion = '4.5'
+    DotNetFrameworkVersion = '2.0'
 
     # Minimum version of the common language runtime (CLR) required by this module
     CLRVersion = ''
