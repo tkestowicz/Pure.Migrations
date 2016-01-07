@@ -6,4 +6,4 @@ $corePackageDirectory = [System.IO.Directory]::EnumerateDirectories($packagesPat
 $coreToolsPath = Join-Path $corePackageDirectory "tools"
 $driverPath = Join-Path $toolsPath 'Pure.Migrations.Driver.SqlServer.psd1'
 
-Import-Module $coreToolsPath\Pure.Migrations.Core.Psd1 -ArgumentList @($driverPath, $coreToolsPath, $packagesPath) -Force -DisableNameChecking
+Import-Module $coreToolsPath\Pure.Migrations.Core.Psd1 -ArgumentList @($driverPath, $coreToolsPath, $packagesPath, $project) -Force -DisableNameChecking

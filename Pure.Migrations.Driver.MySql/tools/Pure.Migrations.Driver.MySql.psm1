@@ -1,10 +1,15 @@
 ﻿param(
     [Parameter(Mandatory=$true)]
-    $packagesPath
+    $packagesPath,
+    [Parameter(Mandatory=$true)]
+    $project
 )
 
 $mysqlDirectory = [System.IO.Directory]::EnumerateDirectories($packagesPath, "MySql.Data*") | Sort-Object Name -Descending | Select-Object -First 1
-$mysqlLibPath = Join-Path $mysqlDirectory "lib\net45\MySql.Data.dll"
+
+$dotNetVersion = detect-framework-version
+Write-Host "lib\$dotNetVersion\MySql.Data.dll"
+$mysqlLibPath = Join-Path $mysqlDirectory "lib\$dotNetVersion\MySql.Data.dll"
 
 Add-Type -Path $mysqlLibPath
 
@@ -91,6 +96,23 @@ function read-queries($file)
             $command
             $command = ""
         }
+    }
+}
+
+function detect-framework-version()
+{
+    $version = ($project.Properties | where { $_.Name -eq "TargetFrameworkMoniker" } | select -first 1).Value
+    Write-Host $version
+    if($version -match "4.0"){
+        
+        return "net40"
+    }
+    elseif($version -match "4.[1-9]"){
+        
+        return "net45"
+    }
+    else{
+        return "net20"
     }
 }
 

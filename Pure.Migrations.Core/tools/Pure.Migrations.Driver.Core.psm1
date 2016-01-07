@@ -1,9 +1,11 @@
 ﻿param(
     [Parameter(Mandatory=$true)]
-    $driver
+    $driver,
+    [Parameter(Mandatory=$true)]
+    $project
 )
 
-Import-Module $driver -ArgumentList $packagesPath -Force -DisableNameChecking
+Import-Module $driver -ArgumentList @($packagesPath, $project) -Force -DisableNameChecking
 
 function execute-script($file, $cmd, $verbose)
 {

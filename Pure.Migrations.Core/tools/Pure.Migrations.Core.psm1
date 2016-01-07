@@ -4,13 +4,15 @@
     [Parameter(Mandatory=$true)]
     $coreToolsPath,
     [Parameter(Mandatory=$true)]
-    $packagesPath
+    $packagesPath,
+    [Parameter(Mandatory=$true)]
+    $project
 )
 
 $solutionPath = Split-Path $DTE.Solution.Properties.Item('Path').Value
 
-Import-Module $driver -ArgumentList $packagesPath -Force -DisableNameChecking
-Import-Module $coreToolsPath\Pure.Migrations.Driver.Core.psd1 -ArgumentList $driver -Force -DisableNameChecking
+Import-Module $driver -ArgumentList @($packagesPath, $project) -Force -DisableNameChecking
+Import-Module $coreToolsPath\Pure.Migrations.Driver.Core.psd1 -ArgumentList @($driver, $project) -Force -DisableNameChecking
 
 $scriptTypeEnum = @{
       Migration = 1
@@ -612,4 +614,4 @@ function create-script-name($id, $type)
     throw "Unkown script type"
 }
 
-Export-ModuleMember -Function new-migration, migrate-database, revert-database, execute-script, import-data
+Export-ModuleMember -Function new-migration, migrate-database, revert-database, execute-script, import-data, find-project-by-name

@@ -1,6 +1,8 @@
 ﻿param(
     [Parameter(Mandatory=$true)]
-    $packagesPath
+    $packagesPath,
+    [Parameter(Mandatory=$true)]
+    $project
 )
 
 $Script:migrationsSchema = "PureMigrations"
